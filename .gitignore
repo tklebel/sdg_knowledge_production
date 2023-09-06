@@ -2,3 +2,8 @@
 .Rhistory
 .RData
 .Ruserdata
+
+*html
+article/derby.log
+article/metastore_db
+article/article_files/libs/*
