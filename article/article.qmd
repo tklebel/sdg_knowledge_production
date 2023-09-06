@@ -168,6 +168,9 @@ growth_rate_data %>%
 
 ```{r}
 growth_rate_data %>% 
+  knitr::kable()
+
+growth_rate_data %>% 
   filter(year %in% c(2006, 2019)) %>% 
   summarise(overall_growth_factor = {overall_n / lag(overall_n)}[2],
             individual_growth_factor = {n / lag(n)}[2],
