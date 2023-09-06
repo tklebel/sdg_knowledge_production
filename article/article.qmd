@@ -12,6 +12,7 @@ library(arrow)
 library(here)
 library(tidyr)
 library(forcats)
+library(readr)
 
 theme_set(theme_bw())
 
@@ -37,6 +38,7 @@ message("Connection to Spark successful!")
 
 message("Reading the datasets...")
 
+# Overall MAG data
 paper_cols <- c("id", "rank", "doi", "type", "title_normalised", "title", 
                 "unknown1", "year", "date", "publisher", paste0("unknown", 2:11),
                 "journal", paste0("unknown", c(13, 14)))
@@ -47,6 +49,7 @@ mag_2020_papers <- spark_read_csv(sc, "/tklebel/mag2020/papers.txt",
                                   delimiter = "\\t", header = FALSE,
                                   columns = paper_cols)
 
+# SDG specific data
 papers <- spark_read_csv(sc, "/tklebel/SDG/sdg_papers_collated.csv",
                          name = "papers")
 sdg_labels <- spark_read_csv(sc, "/tklebel/SDG/sdg_labels.csv",
@@ -58,6 +61,25 @@ papers <- papers %>%
 # remove 2019-2020 altogether. my MAG copy was still incomplete for 2019
 papers <- papers %>% 
   filter(year < 2019)
+
+# Affiliations
+affils <- spark_read_csv(sc,
+                         "/tklebel/SDG/affiliations_with_country_code.csv",
+                         name = "affils")
+
+author_paper_affiliations <- spark_read_csv(
+  sc,
+  "/tklebel/SDG/sdg_author_paper_affil.csv",
+  name = "author_paper_affiliations"
+)
+
+# UN country information
+un_countries <- read_csv2(here::here("data/external/UNSD — Methodology.csv"))
+
+un_countries_selection <- un_countries %>% 
+  select(country_code = `ISO-alpha3 Code`, country_name = `Country or Area`, 
+         continent = `Region Name`, sub_continent = `Sub-region Name`)
+
 ```
 
 # Sample size
@@ -147,6 +169,62 @@ growth_rate_data %>%
   knitr::kable()
   
 ```
+
+# Continents over time
+```{r}
+author_paper_affiliations_w_groups <- make_author_groups(author_paper_affiliations)
+
+papers_w_affils <- papers %>% 
+  select(paperid, SDG_label, year, citations_norm) %>% 
+  left_join(author_paper_affiliations_w_groups) %>% 
+  right_join(affils) %>% 
+  select(paperid, SDG_label, year, authorid, affiliationid, country,
+         paper_author_cat, author_position, citations_norm)
+```
+
+
+```{r}
+papers_per_country_fos_author_pos <- papers_w_affils %>% 
+  group_by(country, year, SDG_label, author_position) %>% 
+  summarise(n = n()) %>% 
+  collect()
+
+papers_per_country_fos_author_pos_country <- papers_per_country_fos_author_pos %>%
+  left_join(un_countries_selection, by = c("country" = "country_code")) %>% 
+  drop_na()
+
+normalised_region_share_time <- papers_per_country_fos_author_pos_country %>% 
+  filter(author_position == "first_author") %>%
+  group_by(SDG_label, year, sub_continent) %>% 
+  summarise(nn = sum(n)) %>% 
+  mutate(share = nn/sum(nn))
+```
+
+```{r sub_continents_over_time, fig.width=8.2, fig.height=4.4}
+date_scale <- scale_x_date(breaks = as_year(c(2006, 2010, 2015, 2019)),
+               date_labels = "%Y")
+base_col = "grey80"
+
+subset_countries <- filter(
+  normalised_region_share_time, 
+  sub_continent %in% c("Northern America", "Western Europe", "Northern Europe",
+                       "Eastern Asia"
+  ))
+
+normalised_region_share_time %>% 
+  ggplot(aes(as_year(year), share, group = sub_continent, colour = sub_continent)) +
+  geom_line(colour = base_col) +
+  geom_line(data = subset_countries) +
+  geom_point(data = subset_countries, size = 1.2) +
+  facet_wrap(vars(fix_sdg(SDG_label))) +
+  date_scale +
+  scale_y_continuous(labels = function(x) scales::percent(x, 1)) +
+  colorspace::scale_color_discrete_qualitative() +
+  theme(legend.position = "top") +
+  labs(x = NULL, y = "% of publications from world region within SDGs",
+       colour = NULL)
+```
+
 
 
 
