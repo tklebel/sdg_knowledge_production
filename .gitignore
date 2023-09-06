@@ -7,3 +7,5 @@
 article/derby.log
 article/metastore_db
 article/article_files/libs/*
+
+data/external/*
