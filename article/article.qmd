@@ -40,14 +40,21 @@ message("Reading the datasets...")
 
 # Overall MAG data
 paper_cols <- c("id", "rank", "doi", "type", "title_normalised", "title", 
-                "unknown1", "year", "date", "publisher", paste0("unknown", 2:11),
-                "journal", paste0("unknown", c(13, 14)))
+                "unknown1", "year", "date", "unknown2", "publisher", 
+                paste0("unknown", 3:12),
+                "journal", paste0("unknown", c(14:16)))
 
-mag_2020_papers <- spark_read_csv(sc, "/tklebel/mag2020/papers.txt",
-                                   name = "mag2020_papers",
-                                   memory = FALSE,
+mag_2021_papers <- spark_read_csv(sc, "/tklebel/mag-2021-03-15/Papers.txt",
+                                  name = "mag2021_papers",
+                                  memory = FALSE,
                                   delimiter = "\\t", header = FALSE,
                                   columns = paper_cols)
+
+mag_2021_paper_author_affil <- spark_read_csv(
+  sc, 
+  "/tklebel/mag-2021-03-15/PaperAuthorAffiliations.txt",
+  name = "mag2021_paper_author_affil", delimiter = "\\t",
+  memory = FALSE, header = FALSE)
 
 # SDG specific data
 papers <- spark_read_csv(sc, "/tklebel/SDG/sdg_papers_collated.csv",
@@ -58,9 +65,9 @@ sdg_labels <- spark_read_csv(sc, "/tklebel/SDG/sdg_labels.csv",
 papers <- papers %>% 
   left_join(sdg_labels)
 
-# remove 2019-2020 altogether. my MAG copy was still incomplete for 2019
+# remove 2020
 papers <- papers %>% 
-  filter(year < 2019)
+  filter(year < 2020)
 
 # Affiliations
 affils <- spark_read_csv(sc,
@@ -112,7 +119,7 @@ sdg_counts <- papers %>%
   count(SDG_label, year) %>% 
   collect()
 
-overall_count <- mag_2020_papers %>% 
+overall_count <- mag_2021_papers %>% 
   filter(year %in% 2006:2019) %>% 
   count(year, name = "overall_n") %>% 
   collect() %>% 
@@ -161,11 +168,11 @@ growth_rate_data %>%
 
 ```{r}
 growth_rate_data %>% 
-  filter(year %in% c(2006, 2018)) %>% 
+  filter(year %in% c(2006, 2019)) %>% 
   summarise(overall_growth_factor = {overall_n / lag(overall_n)}[2],
             individual_growth_factor = {n / lag(n)}[2],
-            individual_growth_rate = individual_growth_factor^(1/(2018-2006)) - 1,
-            overall_growth_rate = overall_growth_factor^(1/(2018-2006)) - 1) %>% 
+            individual_growth_rate = individual_growth_factor^(1/(2019-2006)) - 1,
+            overall_growth_rate = overall_growth_factor^(1/(2019-2006)) - 1) %>% 
   knitr::kable()
   
 ```
@@ -225,6 +232,14 @@ normalised_region_share_time %>%
 ```
 
 This is now equivalent to full counting, since all author positions are included.
+
+
+Need a baseline across all of MAG. For this we need:
+
+- all papers
+- all paper author affils
+- mapping between affil and country
+
 
 
 
