@@ -55,9 +55,30 @@ sdg_labels <- spark_read_csv(sc, "/tklebel/SDG/sdg_labels.csv",
 papers <- papers %>% 
   left_join(sdg_labels)
 
-# remove 2020 altogether
+# remove 2019-2020 altogether. my MAG copy was still incomplete for 2019
 papers <- papers %>% 
-  filter(year < 2020)
+  filter(year < 2019)
+```
+
+# Sample size
+```{r}
+# total sample size
+papers %>% 
+  sdf_nrow()
+```
+
+```{r}
+# per SDG
+papers %>% 
+  count(SDG_label)
+```
+
+```{r}
+papers %>% 
+  group_by(year) %>% 
+  filter(year %in% c(2006, 2018)) %>% 
+  count(SDG_label) %>% 
+  arrange(SDG_label, year)
 ```
 
 
@@ -94,4 +115,42 @@ merged_count %>%
 Normalised by the overall number of papers in MAG, there is some growth for 
 these literatures. 
 
-TODO: make a better figure/table to view the growth rate
+```{r growth-rates}
+growth_rate_data <- merged_count %>% 
+  arrange(SDG_label, year) %>% 
+  group_by(SDG_label) %>% 
+  mutate(prop_change = prop / lag(prop),
+         prop_change = replace_na(prop_change, 1),
+         prop_change = prop_change - 1)
+
+growth_rate_data %>% 
+  ggplot(aes(as_year(year), prop_change, colour = fix_sdg(SDG_label))) +
+  geom_line() +
+  geom_point() +
+  colorspace::scale_color_discrete_qualitative() +
+  scale_y_continuous(labels = scales::percent) +
+  labs(x = NULL, y = "Yearly growth rate relative to total papers in MAG",
+       colour = NULL,
+       title = "Development of SDG areas over time") +
+  theme(legend.position = "top")
+```
+
+
+
+```{r}
+growth_rate_data %>% 
+  filter(year %in% c(2006, 2018)) %>% 
+  summarise(overall_growth_factor = {overall_n / lag(overall_n)}[2],
+            individual_growth_factor = {n / lag(n)}[2],
+            individual_growth_rate = individual_growth_factor^(1/(2018-2006)) - 1,
+            overall_growth_rate = overall_growth_factor^(1/(2018-2006)) - 1) %>% 
+  knitr::kable()
+  
+```
+
+
+
+```{r}
+spark_disconnect(sc)
+```
+
