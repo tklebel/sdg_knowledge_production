@@ -1,0 +1,97 @@
+---
+title: "SDG contributions"
+format: html
+---
+
+```{r load data}
+library(sparklyr)
+library(ggplot2)
+library(patchwork)
+library(dplyr)
+library(arrow)
+library(here)
+library(tidyr)
+library(forcats)
+
+theme_set(theme_bw())
+
+source(here("R/helpers.R"))
+
+Sys.setenv(SPARK_HOME = "/home/tklebel/spark-3.4.0-bin-hadoop3/")
+Sys.setenv(HADOOP_HOME = "/home/hadoop/hadoop-3.3.1")
+Sys.setenv(HADOOP_CONF_DIR = "/home/hadoop/hadoop-3.3.1/etc/hadoop")
+Sys.setenv(YARN_HOME = "/home/hadoop/hadoop-3.3.1")
+Sys.setenv(YARN_CONF_DIR = "/home/hadoop/hadoop-3.3.1/etc/hadoop")
+Sys.setenv(JAVA_HOME="/usr/lib/jvm/java-1.11.0-openjdk-amd64")
+
+config <- spark_config()
+config$spark.executor.cores <- 5
+config$spark.executor.instances <- 38
+config$spark.executor.memory <- "20G"
+config$spark.hadoop.mapreduce.fileoutputcommitter.algorithm.version <- 2
+
+sc <- spark_connect(master = "yarn", config = config,
+                    app_name = "SDG-knowledge-production")
+
+message("Connection to Spark successful!")
+
+message("Reading the datasets...")
+
+paper_cols <- c("id", "rank", "doi", "type", "title_normalised", "title", 
+                "unknown1", "year", "date", "publisher", paste0("unknown", 2:11),
+                "journal", paste0("unknown", c(13, 14)))
+
+mag_2020_papers <- spark_read_csv(sc, "/tklebel/mag2020/papers.txt",
+                                   name = "mag2020_papers",
+                                   memory = FALSE,
+                                  delimiter = "\\t", header = FALSE,
+                                  columns = paper_cols)
+
+papers <- spark_read_csv(sc, "/tklebel/SDG/sdg_papers_collated.csv",
+                         name = "papers")
+sdg_labels <- spark_read_csv(sc, "/tklebel/SDG/sdg_labels.csv",
+                             name = "sdg_labels")
+# join the labels here, since we are doing everything by SDG
+papers <- papers %>% 
+  left_join(sdg_labels)
+
+# remove 2020 altogether
+papers <- papers %>% 
+  filter(year < 2020)
+```
+
+
+
+
+# Growth of literature
+```{r sdg_count, fig.width=7, fig.height=4}
+sdg_counts <- papers %>% 
+  count(SDG_label, year) %>% 
+  collect()
+
+overall_count <- mag_2020_papers %>% 
+  filter(year %in% 2006:2019) %>% 
+  count(year, name = "overall_n") %>% 
+  collect() %>% 
+  mutate(year = as.integer(year))
+
+merged_count <- sdg_counts %>% 
+  left_join(overall_count) %>% 
+  mutate(prop = n / overall_n)
+  
+merged_count %>% 
+  drop_na() %>% 
+  ggplot(aes(as_year(year), prop, colour = fix_sdg(SDG_label))) +
+  geom_line() +
+  geom_point() +
+  colorspace::scale_color_discrete_qualitative() +
+  scale_y_log10(labels = scales::comma,
+                breaks = c(10e+3, 30e+3, 1e+5, 1e+6)) +
+  labs(x = NULL, y = "# of publications", colour = NULL,
+       title = "Development of SDG areas over time") 
+```
+
+Normalised by the overall number of papers in MAG, there is some growth for 
+these literatures. 
+
+TODO: make a better figure/table to view the growth rate
