@@ -194,7 +194,6 @@ papers_per_country_fos_author_pos_country <- papers_per_country_fos_author_pos %
   drop_na()
 
 normalised_region_share_time <- papers_per_country_fos_author_pos_country %>% 
-  filter(author_position == "first_author") %>%
   group_by(SDG_label, year, sub_continent) %>% 
   summarise(nn = sum(n)) %>% 
   mutate(share = nn/sum(nn))
@@ -225,6 +224,7 @@ normalised_region_share_time %>%
        colour = NULL)
 ```
 
+This is now equivalent to full counting, since all author positions are included.
 
 
 
