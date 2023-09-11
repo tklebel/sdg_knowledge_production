@@ -50,11 +50,14 @@ mag_2021_papers <- spark_read_csv(sc, "/tklebel/mag-2021-03-15/Papers.txt",
                                   delimiter = "\\t", header = FALSE,
                                   columns = paper_cols)
 
+affil_cols <- c("paperid", "authorid", "affiliationid", "authorsequencenumber",
+                "originalauthor", "originalaffiliation")
+
 mag_2021_paper_author_affil <- spark_read_csv(
   sc, 
   "/tklebel/mag-2021-03-15/PaperAuthorAffiliations.txt",
   name = "mag2021_paper_author_affil", delimiter = "\\t",
-  memory = FALSE, header = FALSE)
+  memory = FALSE, header = FALSE, columns = affil_cols)
 
 # SDG specific data
 papers <- spark_read_csv(sc, "/tklebel/SDG/sdg_papers_collated.csv",
@@ -242,6 +245,20 @@ Need a baseline across all of MAG. For this we need:
 - all papers
 - all paper author affils
 - mapping between affil and country
+
+```{r}
+# check if we got countries for most affils in the full set
+merged <- mag_2021_paper_author_affil %>% 
+  distinct(affiliationid) %>% 
+  left_join(affils) %>% 
+  collect()
+
+
+merged_orig_data <- author_paper_affiliations %>% 
+  distinct(affiliationid) %>% 
+  left_join(affils) %>% 
+  collect()
+```
 
 
 
