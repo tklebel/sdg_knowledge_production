@@ -39,7 +39,7 @@ message("Connection to Spark successful!")
 message("Reading the datasets...")
 
 # Overall MAG data
-paper_cols <- c("id", "rank", "doi", "type", "title_normalised", "title", 
+paper_cols <- c("paperid", "rank", "doi", "type", "title_normalised", "title", 
                 "unknown1", "year", "date", "unknown2", "publisher", 
                 paste0("unknown", 3:12),
                 "journal", paste0("unknown", c(14:16)))
@@ -58,6 +58,14 @@ mag_2021_paper_author_affil <- spark_read_csv(
   "/tklebel/mag-2021-03-15/PaperAuthorAffiliations.txt",
   name = "mag2021_paper_author_affil", delimiter = "\\t",
   memory = FALSE, header = FALSE, columns = affil_cols)
+
+# this is data to fill in country information where we do not have it from the
+# SDG set
+missing_country_data <- spark_read_csv(
+  sc,
+  "/tklebel/SDG/additional_country_information.csv",
+  name = "missing_country_data"
+)
 
 # SDG specific data
 papers <- spark_read_csv(sc, "/tklebel/SDG/sdg_papers_collated.csv",
@@ -190,7 +198,7 @@ author_paper_affiliations_w_groups <- make_author_groups(author_paper_affiliatio
 papers_w_affils <- papers %>% 
   select(paperid, SDG_label, year, citations_norm) %>% 
   left_join(author_paper_affiliations_w_groups) %>% 
-  right_join(affils) %>% 
+  left_join(affils) %>% 
   select(paperid, SDG_label, year, authorid, affiliationid, country,
          paper_author_cat, author_position, citations_norm)
 ```
@@ -240,27 +248,68 @@ normalised_region_share_time %>%
 This is now equivalent to full counting, since all author positions are included.
 
 
-Need a baseline across all of MAG. For this we need:
-
-- all papers
-- all paper author affils
-- mapping between affil and country
+## Baseline calculation
 
 ```{r}
-# check if we got countries for most affils in the full set
-merged <- mag_2021_paper_author_affil %>% 
-  distinct(affiliationid) %>% 
+mag_2021_papers_w_affils <- mag_2021_papers %>% 
+  select(paperid, year) %>% 
+  left_join(mag_2021_paper_author_affil) %>% 
   left_join(affils) %>% 
-  collect()
-
-
-merged_orig_data <- author_paper_affiliations %>% 
-  distinct(affiliationid) %>% 
-  left_join(affils) %>% 
-  collect()
+  left_join(missing_country_data) %>% 
+  select(paperid, year, authorid, affiliationid, country)
 ```
 
 
+```{r}
+mag_2021_papers_per_country <- mag_2021_papers_w_affils %>% 
+  filter(year %in% 2006:2019) %>% 
+  group_by(country, year) %>% 
+  summarise(n = n()) %>% 
+  collect()
+
+mag_2021_papers_per_country_w_country_info <- mag_2021_papers_per_country %>%
+  left_join(un_countries_selection, by = c("country" = "country_code")) %>% 
+  drop_na()
+
+mag_2021_normalised_region_share_time <- mag_2021_papers_per_country_w_country_info %>% 
+  group_by(year, sub_continent) %>% 
+  summarise(nn = sum(n)) %>% 
+  mutate(share = nn/sum(nn))
+```
+
+```{r baseline_sub_continents_over_time, fig.width=8.2, fig.height=4.4}
+date_scale <- scale_x_date(breaks = as_year(c(2006, 2010, 2015, 2019)),
+               date_labels = "%Y")
+base_col = "grey80"
+
+subset_countries <- filter(
+  mag_2021_normalised_region_share_time, 
+  sub_continent %in% c("Northern America", "Western Europe", "Northern Europe",
+                       "Eastern Asia"
+  ))
+
+mag_2021_normalised_region_share_time %>% 
+  ggplot(aes(as_year(year), share, group = sub_continent, colour = sub_continent)) +
+  geom_line(colour = base_col) +
+  geom_line(data = subset_countries) +
+  geom_point(data = subset_countries, size = 1.2) +
+  date_scale +
+  scale_y_continuous(labels = function(x) scales::percent(x, 1)) +
+  colorspace::scale_color_discrete_qualitative() +
+  theme(legend.position = "top") +
+  labs(x = NULL, y = "% of publications from world region across MAG",
+       colour = NULL)
+```
+
+The above is the same graph above but for all of MAG. The next step is to 
+integrate this into the existing graph. Options:
+
+- Normalise existing graph by baseline
+- Add baseline as a background (maybe with different line type)
+
+The latter seems more in line with the focus of the analysis, since the target
+is the overall distribution of knowledge production, not the relative 
+specialisation.
 
 
 ```{r}
