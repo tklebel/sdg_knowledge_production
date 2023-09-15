@@ -139,8 +139,6 @@ papers %>%
 ```
 
 
-
-
 # Growth of literature
 ```{r sdg_count, fig.width=7, fig.height=4}
 sdg_counts <- papers %>% 
@@ -691,7 +689,7 @@ p1 +
                 colour = "grey30") +
   labs(colour = "World region")
 ```
-### split by SDG
+### Split by SDG
 ```{r}
 oa_per_country_per_SDG <- oa_per_affiliation_selected %>%
   filter(year >= 2015 & year <= 2018) %>% 
@@ -734,19 +732,18 @@ affil_oa <- papers_per_affiliation_per_SDG_w_leiden %>%
   mutate(oa_share = n_frac_oa_papers / n_frac_papers)
 ```
 
-```{r oa_prestige_correlation, fig.width=8, fig.height=4}
+```{r oa_prestige_correlation, fig.width=6.5, fig.height=3.7}
 affil_oa %>% 
   group_by(year, SDG_label) %>% 
-  filter(n_frac_papers > 50) %>% 
+  filter(n_frac_papers > 50, !is.na(P_top10)) %>% 
   summarise(cor = cor(oa_share, P_top10, use = "pairwise.complete.obs")) %>% 
-  ggplot(aes(year, cor, colour = fix_sdg(SDG_label))) +
+  ggplot(aes(as_year(year), cor, colour = fix_sdg(SDG_label))) +
   geom_line() +
   geom_point() +
   colorspace::scale_color_discrete_qualitative() +
   scale_y_continuous(limits = c(0, .6)) +
   labs(y = expression(paste("Correlation between OA shares in SDG & P"["top 10%"])),
-       x = NULL, colour = NULL) +
-  theme(legend.position = "top")
+       x = NULL, colour = NULL) 
 ```
 
 ```{r}
