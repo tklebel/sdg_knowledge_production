@@ -224,7 +224,30 @@ un_countries_selection <- un_countries %>%
 leiden <- spark_read_csv(sc,
                          "/tklebel/SDG/leiden_ranking.csv",
                          name = "leiden")
+
+# World Bank data
+wb_indicators <- spark_read_csv(
+  sc,
+  "/tklebel/SDG/world_bank_indicators.csv",
+  name = "wb_indicators")
+
+wb_countries <- read_csv(here::here("data/external/WDICountry.csv"))
 ```
+
+::: {.cell-output .cell-output-stderr}
+```
+New names:
+Rows: 263 Columns: 31
+── Column specification
+──────────────────────────────────────────────────────── Delimiter: "," chr
+(26): Country Code, Short Name, Table Name, Long Name, 2-alpha code, Cur... dbl
+(3): National accounts reference year, Latest industrial data, Latest t... lgl
+(2): PPP survey year, ...31
+ℹ Use `spec()` to retrieve the full column specification for this data. ℹ
+Specify the column types or set `show_col_types = FALSE` to quiet this message.
+• `` -> `...31`
+```
+:::
 :::
 
 
@@ -291,8 +314,6 @@ papers %>%
 ```
 :::
 :::
-
-
 
 
 
@@ -735,13 +756,14 @@ continent_specialisation %>%
 ::: {.cell}
 
 ```{.r .cell-code}
-papers_per_affiliation_per_fos <- papers %>% 
+papers_per_affiliation_per_sdg <- papers %>% 
   left_join(author_paper_affiliations) %>% 
   left_join(affils) %>% 
   group_by(authorid, paperid) %>% 
   mutate(frac_value = 1/n()) %>% 
   group_by(affiliationid, year, SDG_label) %>% 
   summarise(n_frac_papers = sum(frac_value, na.rm = TRUE),
+            n_frac_oa_papers = sum(frac_value * as.numeric(is_oa), na.rm = TRUE),
             n_frac_citations = sum(frac_value * citations_norm, na.rm = TRUE)) %>% 
   collect()
 ```
@@ -804,7 +826,7 @@ dbl (1): affiliationid
 :::
 
 ```{.r .cell-code}
-papers_per_affiliation_per_w_leiden <- papers_per_affiliation_per_fos %>%
+papers_per_affiliation_per_SDG_w_leiden <- papers_per_affiliation_per_sdg %>%
   mutate(affiliationid = as.numeric(affiliationid),
          year = as.character(year)) %>% # needed for merging
   left_join(affil_leiden_key) %>%
@@ -821,7 +843,7 @@ Joining with `by = join_by(affiliationid)`
 ::: {.cell-output .cell-output-stderr}
 ```
 Warning in left_join(., affil_leiden_key): Detected an unexpected many-to-many relationship between `x` and `y`.
-ℹ Row 6323 of `x` matches multiple rows in `y`.
+ℹ Row 6303 of `x` matches multiple rows in `y`.
 ℹ Row 7967 of `y` matches multiple rows in `x`.
 ℹ If a many-to-many relationship is expected, set `relationship =
   "many-to-many"` to silence this warning.
@@ -835,7 +857,7 @@ Warning in left_join(., affil_leiden_key): Detected an unexpected many-to-many r
 ::: {.cell}
 
 ```{.r .cell-code}
-papers_per_affiliation_per_w_leiden %>% 
+papers_per_affiliation_per_SDG_w_leiden %>% 
   filter(year == "2018") %>% 
   mutate(in_leiden = if_else(!is.na(University), "matched", "unmatched")) %>% 
   pivot_longer(starts_with("n_"), names_to = "indicator") %>% 
@@ -862,7 +884,7 @@ Warning: Transformation introduced infinite values in continuous y-axis
 
 ::: {.cell-output .cell-output-stderr}
 ```
-Warning: Removed 2095 rows containing non-finite values (`stat_boxplot()`).
+Warning: Removed 7208 rows containing non-finite values (`stat_boxplot()`).
 ```
 :::
 
@@ -902,7 +924,7 @@ plot_bivariate <- function(df, var, x_pos = 1200, y_pos = 11000,
 }
 
 
-papers_per_affiliation_per_w_leiden %>%
+papers_per_affiliation_per_SDG_w_leiden %>%
   filter(year == 2018) %>% 
   plot_bivariate(P_top10, 800, 20000) +
   labs(x = "# of publications of University that is in top 10% of citations 2015-2018 (fractional)",
@@ -927,7 +949,7 @@ papers_per_affiliation_per_w_leiden %>%
 ::: {.cell}
 
 ```{.r .cell-code}
-pdata <- papers_per_affiliation_per_w_leiden %>% 
+pdata <- papers_per_affiliation_per_SDG_w_leiden %>% 
   filter(!is.na(P_top10)) %>% 
   group_by(Period) %>% 
   mutate(across(c(P_top10, PP_top10, impact_P), cut_quantiles)) 
@@ -977,7 +999,7 @@ the `.groups` argument.
 ::: {.cell}
 
 ```{.r .cell-code}
-mag_2021_papers_per_affiliation_per_fos <- mag_2021_papers %>% 
+mag_2021_papers_per_affiliation_per_sdg <- mag_2021_papers %>% 
   left_join(mag_2021_paper_author_affil) %>% 
   group_by(authorid, paperid) %>% 
   mutate(frac_value = 1/n()) %>% 
@@ -997,7 +1019,7 @@ Joining with `by = join_by(paperid)`
 
 ```{.r .cell-code}
 # match with leiden data
-mag_2021_papers_per_affiliation_per_w_leiden <- mag_2021_papers_per_affiliation_per_fos %>%
+mag_2021_papers_per_affiliation_per_SDG_w_leiden <- mag_2021_papers_per_affiliation_per_sdg %>%
   mutate(affiliationid = as.numeric(affiliationid)) %>% # needed for merging
   left_join(affil_leiden_key) %>%
   left_join(leiden_small_local, by = join_by(University, 
@@ -1013,7 +1035,7 @@ Joining with `by = join_by(affiliationid)`
 ::: {.cell-output .cell-output-stderr}
 ```
 Warning in left_join(., affil_leiden_key): Detected an unexpected many-to-many relationship between `x` and `y`.
-ℹ Row 322 of `x` matches multiple rows in `y`.
+ℹ Row 106 of `x` matches multiple rows in `y`.
 ℹ Row 8700 of `y` matches multiple rows in `x`.
 ℹ If a many-to-many relationship is expected, set `relationship =
   "many-to-many"` to silence this warning.
@@ -1022,7 +1044,7 @@ Warning in left_join(., affil_leiden_key): Detected an unexpected many-to-many r
 
 ```{.r .cell-code}
 # calculate baseline data to fit current plot
-baseline_data <- mag_2021_papers_per_affiliation_per_w_leiden %>% 
+baseline_data <- mag_2021_papers_per_affiliation_per_SDG_w_leiden %>% 
   filter(!is.na(P_top10)) %>% 
   group_by(Period) %>% 
   mutate(across(c(P_top10, PP_top10, impact_P), cut_quantiles)) %>% 
@@ -1058,6 +1080,351 @@ the `.groups` argument.
 
 ::: {.cell-output-display}
 ![](article_files/figure-html/sdg_who_ptop_productivity_share_w_baseline-1.png){width=768}
+:::
+:::
+
+# Gender
+Computations for gender could not be reproduced in the current repository 
+because the data are unavailable.
+The original gender-assignments were lost due to a prior server
+becoming defunct. However, since the code for all other computations was fully
+reproducible after setting up anew on a new server, I expect the results to be
+reproducible in principle, if the data were available. The code below is 
+provided for illustration, but was not run recently.
+
+
+
+::: {.cell}
+
+```{.r .cell-code}
+gender_base <- papers %>% 
+  select(paperid, SDG_label, year, is_oa) %>% 
+  left_join(author_paper_affiliations_w_groups) %>% 
+  left_join(author_metadata) %>% 
+  select(paperid, SDG_label, year, author_position, authorid, 
+         paper_author_cat, gender) %>% 
+  filter(gender != "unknown", year < 2020)
+
+gender_years <- gender_base %>% 
+  group_by(SDG_label, year) %>% 
+  count(gender) %>% 
+  mutate(prop = n/sum(n)) %>% 
+  collect()
+
+gender_position <- gender_base %>% 
+  group_by(SDG_label, year, author_position) %>% 
+  count(gender) %>% 
+  mutate(prop = n/sum(n)) %>% 
+  collect()
+```
+:::
+
+::: {.cell}
+
+```{.r .cell-code}
+# Share of female authorships by SDG.
+date_scale <- scale_x_date(breaks = as_year(c(2006, 2010, 2015, 2019)),
+               date_labels = "%Y")
+p <- gender_years %>% 
+  filter(gender == "female") %>% 
+  ggplot(aes(as_year(year), prop, colour = fix_sdg(SDG_label))) +
+  geom_line() +
+  geom_point() +
+  date_scale +
+  scale_y_continuous(labels = function(x) scales::percent(x, 1)) +
+  colorspace::scale_color_discrete_qualitative() +
+  labs(x = NULL, y = "Share of female authorships", colour = NULL) +
+  theme(legend.position = "top")
+p
+```
+:::
+
+::: {.cell}
+
+```{.r .cell-code}
+# Share of women authorships by SDG and author position.
+p <- gender_position %>% 
+  filter(gender == "female") %>% 
+  ggplot(aes(as_year(year), prop, colour = fix_sdg(SDG_label))) +
+  geom_line() +
+  geom_point() +
+  date_scale +
+  facet_wrap(vars(author_position)) +
+  scale_y_continuous(labels = function(x) scales::percent(x, 1)) +
+  colorspace::scale_color_discrete_qualitative() +
+  labs(x = NULL, y = "Share of female authorships", colour = NULL) +
+  theme(legend.position = "top")
+p
+```
+:::
+
+
+# Open Access
+
+::: {.cell}
+
+```{.r .cell-code}
+# aggregate oa_status -----
+oa_status <- papers %>%
+  filter(!is.na(is_oa)) %>%
+  select(paperid, SDG_label, year, is_oa, provider_cat) 
+
+
+oa_per_year <- oa_status %>%
+  count(SDG_label, year, is_oa) %>%
+  collect()
+```
+:::
+
+::: {.cell}
+
+```{.r .cell-code}
+oa_per_year %>%
+  group_by(SDG_label, year) %>%
+  mutate(oa_share = n/sum(n)) %>%
+  filter(is_oa) %>%
+  ggplot(aes(as_year(year), oa_share, colour = fix_sdg(SDG_label),
+             group = fix_sdg(SDG_label))) +
+  geom_point() +
+  geom_line() +
+  scale_y_continuous(labels = function(x) scales::percent(x, accuracy = 1)) +
+  colorspace::scale_color_discrete_qualitative() +
+  labs(x = NULL, y = NULL, colour = NULL) +
+  theme(legend.position = "top")
+```
+
+::: {.cell-output-display}
+![](article_files/figure-html/sdg_oa_by_fos-1.png){width=672}
+:::
+:::
+
+
+## By country
+
+::: {.cell}
+
+```{.r .cell-code}
+oa_per_affiliation <- oa_status %>%
+  left_join(author_paper_affiliations) %>%
+  left_join(affils)
+```
+
+::: {.cell-output .cell-output-stderr}
+```
+Joining with `by = join_by(paperid)`
+Joining with `by = join_by(affiliationid)`
+```
+:::
+
+```{.r .cell-code}
+oa_per_affiliation_selected <- oa_per_affiliation %>%
+  group_by(paperid) %>%
+  mutate(frac_count = 1 / max(authorsequencenumber, na.rm = TRUE)) %>%
+  select(paperid, authorid, is_oa, provider_cat, year, country, frac_count,
+         SDG_label) 
+
+oa_per_country <- oa_per_affiliation_selected %>%
+  filter(year >= 2015 & year <= 2018) %>% 
+  group_by(country, is_oa) %>%
+  summarise(sum_frac_oa = sum(frac_count)) %>%
+  mutate(prop_oa = sum_frac_oa/sum(sum_frac_oa),
+         sum_frac_total = sum(sum_frac_oa)) %>%
+  collect()
+```
+
+::: {.cell-output .cell-output-stderr}
+```
+`summarise()` has grouped output by "country". You can override using the
+`.groups` argument.
+```
+:::
+:::
+
+::: {.cell}
+
+```{.r .cell-code}
+wb_local <- wb_indicators %>%
+  filter(year >= 2015 & year <= 2018) %>%
+  group_by(country_name, country_code, indicator_code, indicator_name) %>% 
+  summarise(value = mean(value, na.rm = TRUE)) %>% 
+  collect()
+```
+
+::: {.cell-output .cell-output-stderr}
+```
+`summarise()` has grouped output by "country_name", "country_code", and
+"indicator_code". You can override using the `.groups` argument.
+```
+:::
+
+```{.r .cell-code}
+proper_countries <- wb_countries %>% 
+  filter(!is.na(`Currency Unit`)) %>% 
+  select(country_code = `Country Code`, short_name = `Short Name`,
+         region = Region, income_group = `Income Group`)
+
+oa_with_gdp_per_cap <- oa_per_country %>%
+  left_join(wb_local, by = c("country" = "country_code")) %>%
+  select(-indicator_name) %>%
+  filter(indicator_code %in% c("NY.GDP.PCAP.KD")) %>%
+  pivot_wider(names_from = indicator_code, values_from = value) %>%
+  drop_na() %>%
+  filter(is_oa)
+```
+
+::: {.cell-output .cell-output-stderr}
+```
+Warning in left_join(., wb_local, by = c(country = "country_code")): Detected an unexpected many-to-many relationship between `x` and `y`.
+ℹ Row 5 of `x` matches multiple rows in `y`.
+ℹ Row 185 of `y` matches multiple rows in `x`.
+ℹ If a many-to-many relationship is expected, set `relationship =
+  "many-to-many"` to silence this warning.
+```
+:::
+
+```{.r .cell-code}
+p <- oa_with_gdp_per_cap %>%
+  filter(sum_frac_total >= 50) %>%
+  left_join(proper_countries, by = c("country" = "country_code")) %>% 
+  ggplot(aes(NY.GDP.PCAP.KD, prop_oa)) +
+  geom_point(aes(size = sum_frac_total)) +
+  labs(x = "GDP per capita", y = "% of publications which are OA",
+       size = "# of publications") +
+  scale_size_continuous(trans = "sqrt", labels = scales::comma) +
+  scale_y_continuous(labels = scales::percent) +
+  scale_x_log10(breaks = c(1e+03, 2e+03, 5e+03, 1e+04, 2e+04, 5e+04, 1e+05),
+                labels = function(x) scales::comma(x, prefix = "$")) +
+  theme_bw() 
+
+p1 <- p +
+  aes(colour = region)
+
+p1 +
+    geom_smooth(aes(colour = NULL), alpha = .3, show.legend = FALSE,
+                colour = "grey30") +
+  labs(colour = "World region")
+```
+
+::: {.cell-output .cell-output-stderr}
+```
+`geom_smooth()` using method = 'loess' and formula = 'y ~ x'
+```
+:::
+
+::: {.cell-output-display}
+![](article_files/figure-html/oa_sdg_per_country_gdp_p_cap-1.png){width=864}
+:::
+:::
+
+### Split by SDG
+
+::: {.cell}
+
+```{.r .cell-code}
+oa_per_country_per_SDG <- oa_per_affiliation_selected %>%
+  filter(year >= 2015 & year <= 2018) %>% 
+  group_by(country, SDG_label, is_oa) %>%
+  summarise(sum_frac_oa = sum(frac_count)) %>%
+  mutate(prop_oa = sum_frac_oa/sum(sum_frac_oa),
+         sum_frac_total = sum(sum_frac_oa)) %>%
+  collect()
+```
+
+::: {.cell-output .cell-output-stderr}
+```
+`summarise()` has grouped output by "country" and "SDG_label". You can override
+using the `.groups` argument.
+```
+:::
+
+```{.r .cell-code}
+oa_sdg_with_gdp_per_cap <- oa_per_country_per_SDG %>%
+  left_join(wb_local, by = c("country" = "country_code")) %>%
+  select(-indicator_name) %>%
+  filter(indicator_code %in% c("NY.GDP.PCAP.KD")) %>%
+  pivot_wider(names_from = indicator_code, values_from = value) %>%
+  drop_na() %>%
+  filter(is_oa)
+```
+
+::: {.cell-output .cell-output-stderr}
+```
+Warning in left_join(., wb_local, by = c(country = "country_code")): Detected an unexpected many-to-many relationship between `x` and `y`.
+ℹ Row 13 of `x` matches multiple rows in `y`.
+ℹ Row 185 of `y` matches multiple rows in `x`.
+ℹ If a many-to-many relationship is expected, set `relationship =
+  "many-to-many"` to silence this warning.
+```
+:::
+:::
+
+::: {.cell}
+
+```{.r .cell-code}
+oa_sdg_with_gdp_per_cap %>%
+  filter(sum_frac_total >= 50) %>%
+  left_join(proper_countries, by = c("country" = "country_code")) %>% 
+  ggplot(aes(NY.GDP.PCAP.KD, prop_oa)) +
+  geom_point(aes(size = sum_frac_total, colour = region)) +
+  geom_smooth(alpha = .3, show.legend = FALSE, colour = "grey30") +
+  labs(x = "GDP per capita", y = "% of publications which are OA",
+       colour = "World region", size = "# of publications") +
+  scale_size_continuous(trans = "sqrt", labels = scales::comma) +
+  scale_y_continuous(labels = scales::percent) +
+  scale_x_log10(breaks = c(1e+03, 2e+03, 5e+03, 1e+04, 2e+04, 5e+04, 1e+05),
+                labels = function(x) scales::comma(x, prefix = "$")) +
+  theme_bw() +
+  facet_wrap(vars(fct_relevel(SDG_label, "SDG_13", after = 3)), nrow = 2) +
+  theme(legend.position = c(.8, .2))
+```
+
+::: {.cell-output .cell-output-stderr}
+```
+`geom_smooth()` using method = 'loess' and formula = 'y ~ x'
+```
+:::
+
+::: {.cell-output-display}
+![](article_files/figure-html/oa_by_sdg-1.png){width=864}
+:::
+:::
+
+
+### Correlate with institutional prestige
+
+::: {.cell}
+
+```{.r .cell-code}
+affil_oa <- papers_per_affiliation_per_SDG_w_leiden %>% 
+  mutate(oa_share = n_frac_oa_papers / n_frac_papers)
+```
+:::
+
+::: {.cell}
+
+```{.r .cell-code}
+affil_oa %>% 
+  group_by(year, SDG_label) %>% 
+  filter(n_frac_papers > 50, !is.na(P_top10)) %>% 
+  summarise(cor = cor(oa_share, P_top10, use = "pairwise.complete.obs")) %>% 
+  ggplot(aes(as_year(year), cor, colour = fix_sdg(SDG_label))) +
+  geom_line() +
+  geom_point() +
+  colorspace::scale_color_discrete_qualitative() +
+  scale_y_continuous(limits = c(0, .6)) +
+  labs(y = expression(paste("Correlation between OA shares in SDG & P"["top 10%"])),
+       x = NULL, colour = NULL) 
+```
+
+::: {.cell-output .cell-output-stderr}
+```
+`summarise()` has grouped output by 'year'. You can override using the
+`.groups` argument.
+```
+:::
+
+::: {.cell-output-display}
+![](article_files/figure-html/oa_prestige_correlation-1.png){width=624}
 :::
 :::
 
