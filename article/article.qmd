@@ -376,7 +376,8 @@ papers_per_affiliation_per_fos <- papers %>%
   group_by(authorid, paperid) %>% 
   mutate(frac_value = 1/n()) %>% 
   group_by(affiliationid, year, SDG_label) %>% 
-  summarise(n_frac_papers = sum(frac_value, na.rm = TRUE)) %>% 
+  summarise(n_frac_papers = sum(frac_value, na.rm = TRUE),
+            n_frac_citations = sum(frac_value * citations_norm, na.rm = TRUE)) %>% 
   collect()
 ```
 
@@ -402,7 +403,7 @@ papers_per_affiliation_per_w_leiden <- papers_per_affiliation_per_fos %>%
 ```
 
 ## Inclusion into Leiden
-```{r, fig.width=9, fig.height=5}
+```{r inclusion_in_leiden, fig.width=9, fig.height=5}
 papers_per_affiliation_per_w_leiden %>% 
   filter(year == "2018") %>% 
   mutate(in_leiden = if_else(!is.na(University), "matched", "unmatched")) %>% 
