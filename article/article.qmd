@@ -335,6 +335,7 @@ continent_specialisation <- normalised_region_share_time %>%
 ```
 
 ```{r, fig.width=10, fig.height=10}
+#| label: fig-specialisation-by-world-region
 #| fig-cap: "Specialisation of world regions. The specialisation factor is
 #| calulated by dividing the share of research towards a certain SDG by the 
 #| overall share of research coming from the same region. Melanesia, Polynesia
