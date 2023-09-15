@@ -524,6 +524,73 @@ pdata %>%
   geom_line(data = baseline_data, linetype = 2, alpha = .7) +
   labs(y = "% of publications (fractional)", colour = expression(P["top 10%"]))
 ```
+# Gender
+Computations for gender could not be reproduced in the current repository 
+because the data are unavailable.
+The original gender-assignments were lost due to a prior server
+becoming defunct. However, since the code for all other computations was fully
+reproducible after setting up anew on a new server, I expect the results to be
+reproducible in principle, if the data were available. The code below is 
+provided for illustration, but was not run recently.
+
+
+```{r, eval=FALSE}
+gender_base <- papers %>% 
+  select(paperid, SDG_label, year, is_oa) %>% 
+  left_join(author_paper_affiliations_w_groups) %>% 
+  left_join(author_metadata) %>% 
+  select(paperid, SDG_label, year, author_position, authorid, 
+         paper_author_cat, gender) %>% 
+  filter(gender != "unknown", year < 2020)
+
+gender_years <- gender_base %>% 
+  group_by(SDG_label, year) %>% 
+  count(gender) %>% 
+  mutate(prop = n/sum(n)) %>% 
+  collect()
+
+gender_position <- gender_base %>% 
+  group_by(SDG_label, year, author_position) %>% 
+  count(gender) %>% 
+  mutate(prop = n/sum(n)) %>% 
+  collect()
+```
+
+
+```{r, eval=FALSE, fig.width=6, fig.height=3}
+# Share of female authorships by SDG.
+date_scale <- scale_x_date(breaks = as_year(c(2006, 2010, 2015, 2019)),
+               date_labels = "%Y")
+p <- gender_years %>% 
+  filter(gender == "female") %>% 
+  ggplot(aes(as_year(year), prop, colour = fix_sdg(SDG_label))) +
+  geom_line() +
+  geom_point() +
+  date_scale +
+  scale_y_continuous(labels = function(x) scales::percent(x, 1)) +
+  colorspace::scale_color_discrete_qualitative() +
+  labs(x = NULL, y = "Share of female authorships", colour = NULL) +
+  theme(legend.position = "top")
+p
+```
+
+```{r eval=FALSE, fig.width=8, fig.height=4}
+# Share of women authorships by SDG and author position.
+p <- gender_position %>% 
+  filter(gender == "female") %>% 
+  ggplot(aes(as_year(year), prop, colour = fix_sdg(SDG_label))) +
+  geom_line() +
+  geom_point() +
+  date_scale +
+  facet_wrap(vars(author_position)) +
+  scale_y_continuous(labels = function(x) scales::percent(x, 1)) +
+  colorspace::scale_color_discrete_qualitative() +
+  labs(x = NULL, y = "Share of female authorships", colour = NULL) +
+  theme(legend.position = "top")
+p
+```
+
+# Open Access
 
 
 ```{r}
