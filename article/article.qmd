@@ -325,8 +325,7 @@ normalised_region_share_time %>%
 
 ```{r}
 # look at relative specialisation to identify how global south is represented in
-# SDG 2
-
+# various SDGs
 continent_specialisation <- normalised_region_share_time %>% 
   rename(nn_sdg = nn, share_sdg = share) %>% 
   mutate(year = as.character(year)) %>% 
