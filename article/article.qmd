@@ -1,6 +1,8 @@
 ---
 title: "SDG contributions"
 format: html
+execute:
+  keep-md: true
 ---
 
 ```{r load data}
@@ -13,6 +15,7 @@ library(here)
 library(tidyr)
 library(forcats)
 library(readr)
+library(stringr)
 
 theme_set(theme_bw())
 
@@ -97,6 +100,12 @@ un_countries <- read_csv2(here::here("data/external/UNSD — Methodology.csv"))
 un_countries_selection <- un_countries %>% 
   select(country_code = `ISO-alpha3 Code`, country_name = `Country or Area`, 
          continent = `Region Name`, sub_continent = `Sub-region Name`)
+
+
+# Leiden Ranking
+leiden <- spark_read_csv(sc,
+                         "/tklebel/SDG/leiden_ranking.csv",
+                         name = "leiden")
 
 ```
 
@@ -348,7 +357,171 @@ continent_specialisation %>%
   facet_wrap(vars(sub_continent)) +
   colorspace::scale_color_discrete_qualitative() +
   theme(legend.position = "top") +
-  labs(x = NULL, colour = NULL, y = "Specialisation factor")
+  labs(x = NULL, colour = NULL, y = "Representation ratio")
+```
+
+```{r}
+continent_specialisation %>% 
+  arrange(sub_continent, SDG_label, year) %>% 
+  rmarkdown::paged_table()
+```
+
+
+
+# Institutional prestige
+```{r}
+papers_per_affiliation_per_fos <- papers %>% 
+  left_join(author_paper_affiliations) %>% 
+  left_join(affils) %>% 
+  group_by(authorid, paperid) %>% 
+  mutate(frac_value = 1/n()) %>% 
+  group_by(affiliationid, year, SDG_label) %>% 
+  summarise(n_frac_papers = sum(frac_value, na.rm = TRUE)) %>% 
+  collect()
+```
+
+
+```{r}
+leiden_small_local <- leiden %>%
+  filter(Field == "All sciences", Frac_counting == 1) %>%
+  select(University, Country, Period, P_top10, PP_top10, impact_P) %>% 
+  collect() %>% 
+  mutate(across(c(P_top10, PP_top10, impact_P), as.numeric),
+         last_year_of_period = str_extract(Period, "\\d{4}$"))
+
+affil_leiden_key <- read_csv2(
+  here::here("data/processed/matching_leiden.csv")
+)
+
+papers_per_affiliation_per_w_leiden <- papers_per_affiliation_per_fos %>%
+  mutate(affiliationid = as.numeric(affiliationid),
+         year = as.character(year)) %>% # needed for merging
+  left_join(affil_leiden_key) %>%
+  left_join(leiden_small_local, by = join_by(University, 
+                                             year == last_year_of_period))
+```
+
+## Inclusion into Leiden
+```{r, fig.width=9, fig.height=5}
+papers_per_affiliation_per_w_leiden %>% 
+  filter(year == "2018") %>% 
+  mutate(in_leiden = if_else(!is.na(University), "matched", "unmatched")) %>% 
+  pivot_longer(starts_with("n_"), names_to = "indicator") %>% 
+  mutate(indicator = if_else(
+    indicator == "n_frac_citations", 
+    "# of citations (fractional)",
+    "# of publications (fractional)"
+  )) %>% 
+  ggplot(aes(SDG_label, value, fill = in_leiden)) +
+  facet_wrap(vars(indicator)) + 
+  geom_boxplot() +
+  scale_y_log10(labels = scales::comma) +
+  colorspace::scale_fill_discrete_qualitative() +
+  labs(x = NULL, y = NULL, fill = "Leiden Ranking",
+       title = "Difference according to mapping to Leiden ranking") +
+  theme(legend.position = "top")
+```
+
+
+
+## Bivariate plot
+
+```{r sdg_who_ptop10_vs_sdg_production, fig.height=4, fig.width=8}
+plot_bivariate <- function(df, var, x_pos = 1200, y_pos = 11000,
+                           dv = n_frac_papers) {
+  pdata <- df %>%
+    filter(year == 2018, !is.na(impact_P))
+  
+  labels <- pdata %>%
+    group_by(SDG_label) %>%
+    summarise(cor = cor({{var}}, {{dv}}, use = "pairwise.complete.obs")) %>%
+    mutate(x = x_pos, y = y_pos,
+           label = glue::glue("r = {round(cor, 2)}"))
+  
+  pdata %>%
+    ggplot(aes({{var}}, {{dv}})) +
+    geom_point(alpha = .3) +
+    scale_x_log10() +
+    scale_y_log10(labels = scales::comma) +
+    facet_wrap(vars(fix_sdg(SDG_label))) +
+    geom_smooth() +
+    geom_text(data = labels, aes(x = x, y = y, label = label))
+}
+
+
+papers_per_affiliation_per_w_leiden %>%
+  filter(year == 2018) %>% 
+  plot_bivariate(P_top10, 800, 20000) +
+  labs(x = "# of publications of University that is in top 10% of citations 2015-2018 (fractional)",
+       y = "# of papers towards SDG in 2018 (fractional)",
+       title = "# of top 10% cited publications vs. SDG production")
+```
+
+## Over time
+```{r}
+pdata <- papers_per_affiliation_per_w_leiden %>% 
+  filter(!is.na(P_top10)) %>% 
+  group_by(Period) %>% 
+  mutate(across(c(P_top10, PP_top10, impact_P), cut_quantiles)) 
+
+
+plot_proportions <- function(df, indicator, y_var) {
+  df %>% 
+    group_by(SDG_label, year, {{indicator}}) %>% 
+    summarise(n = sum({{y_var}}, na.rm = TRUE)) %>% 
+    group_by(SDG_label, year) %>% 
+    mutate(prop = n/sum(n)) %>% 
+    ggplot(aes(as_year(year), prop, colour = {{indicator}})) +
+    geom_line() +
+    geom_point() +
+    facet_wrap(vars(fix_sdg(SDG_label))) + 
+    guides(colour = guide_legend(reverse = TRUE)) +
+    labs(x = NULL) +
+    scale_y_continuous(labels = scales::percent) +
+    colorspace::scale_color_discrete_qualitative()
+}
+```
+
+```{r sdg_who_ptop_productivity_share, fig.asp=.5, fig.width=8}
+pdata %>%
+  plot_proportions(indicator = P_top10, n_frac_papers) +
+  labs(y = "% of publications (fractional)", colour = expression(P["top 10%"]))
+```
+
+## Baseline comparison
+```{r}
+mag_2021_papers_per_affiliation_per_fos <- mag_2021_papers %>% 
+  left_join(mag_2021_paper_author_affil) %>% 
+  group_by(authorid, paperid) %>% 
+  mutate(frac_value = 1/n()) %>% 
+  group_by(affiliationid, year) %>% 
+  summarise(n_frac_papers = sum(frac_value, na.rm = TRUE)) %>% 
+  filter(!is.na(affiliationid)) %>% 
+  collect()
+
+# match with leiden data
+mag_2021_papers_per_affiliation_per_w_leiden <- mag_2021_papers_per_affiliation_per_fos %>%
+  mutate(affiliationid = as.numeric(affiliationid)) %>% # needed for merging
+  left_join(affil_leiden_key) %>%
+  left_join(leiden_small_local, by = join_by(University, 
+                                             year == last_year_of_period))
+
+# calculate baseline data to fit current plot
+baseline_data <- mag_2021_papers_per_affiliation_per_w_leiden %>% 
+  filter(!is.na(P_top10)) %>% 
+  group_by(Period) %>% 
+  mutate(across(c(P_top10, PP_top10, impact_P), cut_quantiles)) %>% 
+  group_by(year, P_top10) %>% 
+  summarise(n = sum(n_frac_papers, na.rm = TRUE)) %>% 
+  group_by(year) %>% 
+  mutate(prop = n/sum(n))
+```
+
+```{r sdg_who_ptop_productivity_share_w_baseline, fig.asp=.5, fig.width=8}
+pdata %>%
+  plot_proportions(indicator = P_top10, n_frac_papers) +
+  geom_line(data = baseline_data, linetype = 2, alpha = .7) +
+  labs(y = "% of publications (fractional)", colour = expression(P["top 10%"]))
 ```
 
 
