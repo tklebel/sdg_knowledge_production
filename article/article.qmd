@@ -282,7 +282,7 @@ date_scale <- scale_x_date(breaks = as_year(c(2006, 2010, 2015, 2019)),
                date_labels = "%Y")
 base_col = "grey80"
 
-subset_countries <- filter(
+mag_2021_subset_countries <- filter(
   mag_2021_normalised_region_share_time, 
   sub_continent %in% c("Northern America", "Western Europe", "Northern Europe",
                        "Eastern Asia"
@@ -291,8 +291,8 @@ subset_countries <- filter(
 mag_2021_normalised_region_share_time %>% 
   ggplot(aes(as_year(year), share, group = sub_continent, colour = sub_continent)) +
   geom_line(colour = base_col) +
-  geom_line(data = subset_countries) +
-  geom_point(data = subset_countries, size = 1.2) +
+  geom_line(data = mag_2021_subset_countries) +
+  geom_point(data = mag_2021_subset_countries, size = 1.2) +
   date_scale +
   scale_y_continuous(labels = function(x) scales::percent(x, 1)) +
   colorspace::scale_color_discrete_qualitative() +
@@ -301,15 +301,55 @@ mag_2021_normalised_region_share_time %>%
        colour = NULL)
 ```
 
-The above is the same graph above but for all of MAG. The next step is to 
-integrate this into the existing graph. Options:
 
-- Normalise existing graph by baseline
-- Add baseline as a background (maybe with different line type)
+## Joint figure including baseline
+```{r, fig.width=8.2, fig.height=4.4}
+#| fig-cap: "Proportion of research from world regions on SDGs. The dashed line
+#|           indicates the average across all of MAG"
+#| label: fig-sub_continents_over_time_with_baseline
+normalised_region_share_time %>% 
+  ggplot(aes(as_year(year), share, group = sub_continent, colour = sub_continent)) +
+  geom_line(colour = base_col) +
+  geom_line(data = mag_2021_subset_countries, linetype = 2) +
+  geom_line(data = subset_countries) +
+  geom_point(data = subset_countries, size = 1.2) +
+  facet_wrap(vars(fix_sdg(SDG_label))) +
+  date_scale +
+  scale_y_continuous(labels = function(x) scales::percent(x, 1)) +
+  colorspace::scale_color_discrete_qualitative() +
+  theme(legend.position = "top") +
+  labs(x = NULL, y = "% of publications from world region within SDGs",
+       colour = NULL)
+```
 
-The latter seems more in line with the focus of the analysis, since the target
-is the overall distribution of knowledge production, not the relative 
-specialisation.
+
+```{r}
+# look at relative specialisation to identify how global south is represented in
+# SDG 2
+
+continent_specialisation <- normalised_region_share_time %>% 
+  rename(nn_sdg = nn, share_sdg = share) %>% 
+  mutate(year = as.character(year)) %>% 
+  left_join(mag_2021_normalised_region_share_time) %>% 
+  mutate(specialisation = share_sdg / share)
+```
+
+```{r, fig.width=10, fig.height=10}
+#| fig-cap: "Specialisation of world regions. The specialisation factor is
+#| calulated by dividing the share of research towards a certain SDG by the 
+#| overall share of research coming from the same region. Melanesia, Polynesia
+#| and Micronesia are omitted due to low cell counts."
+continent_specialisation %>% 
+  filter(!sub_continent %in% c("Melanesia", "Polynesia", "Micronesia")) %>% 
+  ggplot(aes(as_year(year), specialisation, colour = fix_sdg(SDG_label))) +
+  geom_hline(yintercept = 1, colour = "grey30") +
+  geom_line() +
+  geom_point(size = 1.1) +
+  facet_wrap(vars(sub_continent)) +
+  colorspace::scale_color_discrete_qualitative() +
+  theme(legend.position = "top") +
+  labs(x = NULL, colour = NULL, y = "Specialisation factor")
+```
 
 
 ```{r}
