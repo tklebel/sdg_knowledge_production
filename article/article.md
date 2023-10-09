@@ -843,8 +843,8 @@ Joining with `by = join_by(affiliationid)`
 ::: {.cell-output .cell-output-stderr}
 ```
 Warning in left_join(., affil_leiden_key): Detected an unexpected many-to-many relationship between `x` and `y`.
-ℹ Row 6303 of `x` matches multiple rows in `y`.
-ℹ Row 7967 of `y` matches multiple rows in `x`.
+ℹ Row 6175 of `x` matches multiple rows in `y`.
+ℹ Row 13466 of `y` matches multiple rows in `x`.
 ℹ If a many-to-many relationship is expected, set `relationship =
   "many-to-many"` to silence this warning.
 ```
@@ -1035,8 +1035,8 @@ Joining with `by = join_by(affiliationid)`
 ::: {.cell-output .cell-output-stderr}
 ```
 Warning in left_join(., affil_leiden_key): Detected an unexpected many-to-many relationship between `x` and `y`.
-ℹ Row 106 of `x` matches multiple rows in `y`.
-ℹ Row 8700 of `y` matches multiple rows in `x`.
+ℹ Row 150 of `x` matches multiple rows in `y`.
+ℹ Row 12237 of `y` matches multiple rows in `x`.
 ℹ If a many-to-many relationship is expected, set `relationship =
   "many-to-many"` to silence this warning.
 ```
