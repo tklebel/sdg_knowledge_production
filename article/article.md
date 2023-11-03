@@ -248,6 +248,13 @@ Specify the column types or set `show_col_types = FALSE` to quiet this message.
 • `` -> `...31`
 ```
 :::
+
+```{.r .cell-code}
+wb_countries_selection <- wb_countries %>% 
+  select(country_code = `Country Code`, region = Region, name = `Short Name`,
+         income_group = `Income Group`) %>% 
+  drop_na()
+```
 :::
 
 
@@ -750,6 +757,113 @@ continent_specialisation %>%
 
 
 
+## Income regions
+
+::: {.cell}
+
+```{.r .cell-code}
+papers_per_country_fos_author_pos_income_region <- papers_per_country_fos_author_pos %>%
+  left_join(wb_countries_selection, by = c("country" = "country_code")) %>% 
+  drop_na()
+
+normalised_income_share_time <- papers_per_country_fos_author_pos_income_region %>% 
+  group_by(SDG_label, year, income_group) %>% 
+  summarise(nn = sum(n)) %>% 
+  mutate(share = nn/sum(nn))
+```
+
+::: {.cell-output .cell-output-stderr}
+```
+`summarise()` has grouped output by 'SDG_label', 'year'. You can override using
+the `.groups` argument.
+```
+:::
+
+```{.r .cell-code}
+mag_2021_papers_per_country_w_income_info <- mag_2021_papers_per_country %>%
+  left_join(wb_countries_selection, by = c("country" = "country_code")) %>% 
+  drop_na()
+
+mag_2021_normalised_income_share_time <- mag_2021_papers_per_country_w_income_info %>% 
+  group_by(year, income_group) %>% 
+  summarise(nn = sum(n)) %>% 
+  mutate(share = nn/sum(nn))
+```
+
+::: {.cell-output .cell-output-stderr}
+```
+`summarise()` has grouped output by 'year'. You can override using the
+`.groups` argument.
+```
+:::
+:::
+
+::: {.cell}
+
+```{.r .cell-code}
+normalised_income_share_time %>% 
+  ggplot(aes(as_year(year), share, group = fix_income_group(income_group), 
+             colour = fix_income_group(income_group))) +
+  geom_line() +
+  geom_line(data = mag_2021_normalised_income_share_time, linetype = 2) +
+  facet_wrap(vars(fix_sdg(SDG_label))) +
+  date_scale +
+  scale_y_continuous(labels = function(x) scales::percent(x, 1)) +
+  colorspace::scale_color_discrete_qualitative() +
+  theme(legend.position = "top") +
+  labs(x = NULL, y = "% of publications from world region within SDGs",
+       colour = NULL)
+```
+
+::: {.cell-output-display}
+![Proportion of research from income regions on SDGs. The dashed line indicates the average across all of MAG](article_files/figure-html/fig-income_regions_over_time_with_baseline-1.png){#fig-income_regions_over_time_with_baseline width=787.2}
+:::
+:::
+
+
+
+### Income region specialisation
+
+::: {.cell}
+
+```{.r .cell-code}
+# look at relative specialisation to identify how global south is represented in
+# various SDGs
+income_group_specialisation <- normalised_income_share_time %>% 
+  rename(nn_sdg = nn, share_sdg = share) %>% 
+  mutate(year = as.character(year)) %>% 
+  left_join(mag_2021_normalised_income_share_time) %>% 
+  mutate(specialisation = share_sdg / share)
+```
+
+::: {.cell-output .cell-output-stderr}
+```
+Joining with `by = join_by(year, income_group)`
+```
+:::
+:::
+
+::: {.cell}
+
+```{.r .cell-code}
+income_group_specialisation %>% 
+  ggplot(aes(as_year(year), specialisation, colour = fix_sdg(SDG_label))) +
+  geom_hline(yintercept = 1, colour = "grey30") +
+  geom_line() +
+  geom_point(size = 1.1) +
+  facet_wrap(vars(fix_income_group(income_group))) +
+  colorspace::scale_color_discrete_qualitative() +
+  theme(legend.position = "top") +
+  labs(x = NULL, colour = NULL, y = "Representation ratio")
+```
+
+::: {.cell-output-display}
+![Specialisation of income groups. The specialisation factor is calulated by dividing the share of research towards a certain SDG by the overall share of research coming from the same income groups.](article_files/figure-html/fig-specialisation-by-income-group-1.png){#fig-specialisation-by-income-group width=576}
+:::
+:::
+
+
+
 
 # Institutional prestige
 
@@ -843,8 +957,8 @@ Joining with `by = join_by(affiliationid)`
 ::: {.cell-output .cell-output-stderr}
 ```
 Warning in left_join(., affil_leiden_key): Detected an unexpected many-to-many relationship between `x` and `y`.
-ℹ Row 6175 of `x` matches multiple rows in `y`.
-ℹ Row 13466 of `y` matches multiple rows in `x`.
+ℹ Row 5982 of `x` matches multiple rows in `y`.
+ℹ Row 15483 of `y` matches multiple rows in `x`.
 ℹ If a many-to-many relationship is expected, set `relationship =
   "many-to-many"` to silence this warning.
 ```
@@ -1035,8 +1149,8 @@ Joining with `by = join_by(affiliationid)`
 ::: {.cell-output .cell-output-stderr}
 ```
 Warning in left_join(., affil_leiden_key): Detected an unexpected many-to-many relationship between `x` and `y`.
-ℹ Row 150 of `x` matches multiple rows in `y`.
-ℹ Row 12237 of `y` matches multiple rows in `x`.
+ℹ Row 360 of `x` matches multiple rows in `y`.
+ℹ Row 11670 of `y` matches multiple rows in `x`.
 ℹ If a many-to-many relationship is expected, set `relationship =
   "many-to-many"` to silence this warning.
 ```
