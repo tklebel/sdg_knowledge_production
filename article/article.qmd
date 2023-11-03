@@ -115,6 +115,10 @@ wb_indicators <- spark_read_csv(
 
 wb_countries <- read_csv(here::here("data/external/WDICountry.csv"))
 
+wb_countries_selection <- wb_countries %>% 
+  select(country_code = `Country Code`, region = Region, name = `Short Name`,
+         income_group = `Income Group`) %>% 
+  drop_na()
 ```
 
 # Sample size
@@ -370,6 +374,74 @@ continent_specialisation %>%
 continent_specialisation %>% 
   arrange(sub_continent, SDG_label, year) %>% 
   rmarkdown::paged_table()
+```
+
+
+## Income regions
+```{r}
+papers_per_country_fos_author_pos_income_region <- papers_per_country_fos_author_pos %>%
+  left_join(wb_countries_selection, by = c("country" = "country_code")) %>% 
+  drop_na()
+
+normalised_income_share_time <- papers_per_country_fos_author_pos_income_region %>% 
+  group_by(SDG_label, year, income_group) %>% 
+  summarise(nn = sum(n)) %>% 
+  mutate(share = nn/sum(nn))
+
+mag_2021_papers_per_country_w_income_info <- mag_2021_papers_per_country %>%
+  left_join(wb_countries_selection, by = c("country" = "country_code")) %>% 
+  drop_na()
+
+mag_2021_normalised_income_share_time <- mag_2021_papers_per_country_w_income_info %>% 
+  group_by(year, income_group) %>% 
+  summarise(nn = sum(n)) %>% 
+  mutate(share = nn/sum(nn))
+```
+
+```{r, fig.width=8.2, fig.height=4.4}
+#| fig-cap: "Proportion of research from income regions on SDGs. The dashed line
+#|           indicates the average across all of MAG"
+#| label: fig-income_regions_over_time_with_baseline
+normalised_income_share_time %>% 
+  ggplot(aes(as_year(year), share, group = fix_income_group(income_group), 
+             colour = fix_income_group(income_group))) +
+  geom_line() +
+  geom_line(data = mag_2021_normalised_income_share_time, linetype = 2) +
+  facet_wrap(vars(fix_sdg(SDG_label))) +
+  date_scale +
+  scale_y_continuous(labels = function(x) scales::percent(x, 1)) +
+  colorspace::scale_color_discrete_qualitative() +
+  theme(legend.position = "top") +
+  labs(x = NULL, y = "% of publications from world region within SDGs",
+       colour = NULL)
+```
+
+
+### Income region specialisation
+```{r}
+# look at relative specialisation to identify how global south is represented in
+# various SDGs
+income_group_specialisation <- normalised_income_share_time %>% 
+  rename(nn_sdg = nn, share_sdg = share) %>% 
+  mutate(year = as.character(year)) %>% 
+  left_join(mag_2021_normalised_income_share_time) %>% 
+  mutate(specialisation = share_sdg / share)
+```
+
+```{r, fig.width=6, fig.height=5}
+#| label: fig-specialisation-by-income-group
+#| fig-cap: "Specialisation of income groups. The specialisation factor is
+#| calulated by dividing the share of research towards a certain SDG by the 
+#| overall share of research coming from the same income groups."
+income_group_specialisation %>% 
+  ggplot(aes(as_year(year), specialisation, colour = fix_sdg(SDG_label))) +
+  geom_hline(yintercept = 1, colour = "grey30") +
+  geom_line() +
+  geom_point(size = 1.1) +
+  facet_wrap(vars(fix_income_group(income_group))) +
+  colorspace::scale_color_discrete_qualitative() +
+  theme(legend.position = "top") +
+  labs(x = NULL, colour = NULL, y = "Representation ratio")
 ```
 
 
