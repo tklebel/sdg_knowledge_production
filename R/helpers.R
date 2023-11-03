@@ -32,6 +32,11 @@ cut_quartiles <- function(x) {
 
 fix_sdg <- function(x) fct_relevel(x, "SDG_13", after = 3)
 
+fix_income_group <- function(x) {
+  fct_relevel(x, "High income", "Upper middle income", "Lower middle income",
+              "Low income")
+}
+
 as_year <- function(num_val) lubridate::ymd(num_val, truncated = 2L)
 
 
