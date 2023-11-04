@@ -444,6 +444,21 @@ income_group_specialisation %>%
   labs(x = NULL, colour = NULL, y = "Representation ratio")
 ```
 
+# Top institutions per SDG
+```{r}
+check_top_affils <- papers %>% 
+  select(paperid, SDG_label, year, citations_norm) %>% 
+  left_join(author_paper_affiliations_w_groups) %>% 
+  left_join(affils) %>% 
+  group_by(SDG_label, displayname, rank) %>% 
+  summarise(n = n()) %>% 
+  arrange(SDG_label, desc(n)) %>% 
+  collect()
+```
+
+Interactively comparing institutions shows that there is specialisation across
+the three SDGs: certain institutions (e.g. Mayo Clinic) publish a lot in one
+SDG (here: SDG 3), but much less in others.
 
 
 # Institutional prestige
