@@ -444,6 +444,21 @@ income_group_specialisation %>%
   labs(x = NULL, colour = NULL, y = "Representation ratio")
 ```
 
+```{r}
+income_group_specialisation %>% 
+  arrange(income_group, SDG_label, year) %>% 
+  rmarkdown::paged_table()
+```
+
+
+```{r}
+income_group_specialisation %>% 
+  group_by(income_group, SDG_label) %>% 
+  summarise(mean_specialisation = mean(specialisation))
+```
+
+
+
 # Top institutions per SDG
 ```{r}
 check_top_affils <- papers %>% 
