@@ -5,7 +5,7 @@ execute:
   keep-md: true
 ---
 
-```{r load data}
+```{r load data, message=FALSE}
 library(sparklyr)
 library(ggplot2)
 library(patchwork)
@@ -810,7 +810,7 @@ oa_sdg_with_gdp_per_cap <- oa_per_country_per_SDG %>%
   filter(is_oa)
 ```
 
-```{r oa_by_sdg, fig.height=7, fig.width=9}
+```{r oa_by_sdg, fig.height=7, fig.width=10}
 oa_sdg_with_gdp_per_cap %>%
   filter(sum_frac_total >= 50) %>%
   left_join(proper_countries, by = c("country" = "country_code")) %>% 

@@ -10,82 +10,11 @@ execute:
 
 ```{.r .cell-code}
 library(sparklyr)
-```
-
-::: {.cell-output .cell-output-stderr}
-```
-
-Attaching package: 'sparklyr'
-```
-:::
-
-::: {.cell-output .cell-output-stderr}
-```
-The following object is masked from 'package:stats':
-
-    filter
-```
-:::
-
-```{.r .cell-code}
 library(ggplot2)
 library(patchwork)
 library(dplyr)
-```
-
-::: {.cell-output .cell-output-stderr}
-```
-
-Attaching package: 'dplyr'
-```
-:::
-
-::: {.cell-output .cell-output-stderr}
-```
-The following objects are masked from 'package:stats':
-
-    filter, lag
-```
-:::
-
-::: {.cell-output .cell-output-stderr}
-```
-The following objects are masked from 'package:base':
-
-    intersect, setdiff, setequal, union
-```
-:::
-
-```{.r .cell-code}
 library(arrow)
-```
-
-::: {.cell-output .cell-output-stderr}
-```
-
-Attaching package: 'arrow'
-```
-:::
-
-::: {.cell-output .cell-output-stderr}
-```
-The following object is masked from 'package:utils':
-
-    timestamp
-```
-:::
-
-```{.r .cell-code}
 library(here)
-```
-
-::: {.cell-output .cell-output-stderr}
-```
-here() starts at /home/tklebel/SDG/sdg_knowledge_production
-```
-:::
-
-```{.r .cell-code}
 library(tidyr)
 library(forcats)
 library(readr)
@@ -112,25 +41,9 @@ sc <- spark_connect(master = "yarn", config = config,
                     app_name = "SDG-knowledge-production")
 
 message("Connection to Spark successful!")
-```
 
-::: {.cell-output .cell-output-stderr}
-```
-Connection to Spark successful!
-```
-:::
-
-```{.r .cell-code}
 message("Reading the datasets...")
-```
 
-::: {.cell-output .cell-output-stderr}
-```
-Reading the datasets...
-```
-:::
-
-```{.r .cell-code}
 # Overall MAG data
 paper_cols <- c("paperid", "rank", "doi", "type", "title_normalised", "title", 
                 "unknown1", "year", "date", "unknown2", "publisher", 
@@ -168,15 +81,7 @@ sdg_labels <- spark_read_csv(sc, "/tklebel/SDG/sdg_labels.csv",
 # join the labels here, since we are doing everything by SDG
 papers <- papers %>% 
   left_join(sdg_labels)
-```
 
-::: {.cell-output .cell-output-stderr}
-```
-Joining with `by = join_by(paperid)`
-```
-:::
-
-```{.r .cell-code}
 # remove 2020
 papers <- papers %>% 
   filter(year < 2020)
@@ -194,27 +99,7 @@ author_paper_affiliations <- spark_read_csv(
 
 # UN country information
 un_countries <- read_csv2(here::here("data/external/UNSD — Methodology.csv"))
-```
 
-::: {.cell-output .cell-output-stderr}
-```
-ℹ Using "','" as decimal and "'.'" as grouping mark. Use `read_delim()` for more control.
-```
-:::
-
-::: {.cell-output .cell-output-stderr}
-```
-Rows: 248 Columns: 15
-── Column specification ────────────────────────────────────────────────────────
-Delimiter: ";"
-chr (15): Global Code, Global Name, Region Code, Region Name, Sub-region Cod...
-
-ℹ Use `spec()` to retrieve the full column specification for this data.
-ℹ Specify the column types or set `show_col_types = FALSE` to quiet this message.
-```
-:::
-
-```{.r .cell-code}
 un_countries_selection <- un_countries %>% 
   select(country_code = `ISO-alpha3 Code`, country_name = `Country or Area`, 
          continent = `Region Name`, sub_continent = `Sub-region Name`)
@@ -232,24 +117,7 @@ wb_indicators <- spark_read_csv(
   name = "wb_indicators")
 
 wb_countries <- read_csv(here::here("data/external/WDICountry.csv"))
-```
 
-::: {.cell-output .cell-output-stderr}
-```
-New names:
-Rows: 263 Columns: 31
-── Column specification
-──────────────────────────────────────────────────────── Delimiter: "," chr
-(26): Country Code, Short Name, Table Name, Long Name, 2-alpha code, Cur... dbl
-(3): National accounts reference year, Latest industrial data, Latest t... lgl
-(2): PPP survey year, ...31
-ℹ Use `spec()` to retrieve the full column specification for this data. ℹ
-Specify the column types or set `show_col_types = FALSE` to quiet this message.
-• `` -> `...31`
-```
-:::
-
-```{.r .cell-code}
 wb_countries_selection <- wb_countries %>% 
   select(country_code = `Country Code`, region = Region, name = `Short Name`,
          income_group = `Income Group`) %>% 
@@ -1046,8 +914,8 @@ Joining with `by = join_by(affiliationid)`
 ::: {.cell-output .cell-output-stderr}
 ```
 Warning in left_join(., affil_leiden_key): Detected an unexpected many-to-many relationship between `x` and `y`.
-ℹ Row 6392 of `x` matches multiple rows in `y`.
-ℹ Row 13149 of `y` matches multiple rows in `x`.
+ℹ Row 6312 of `x` matches multiple rows in `y`.
+ℹ Row 15483 of `y` matches multiple rows in `x`.
 ℹ If a many-to-many relationship is expected, set `relationship =
   "many-to-many"` to silence this warning.
 ```
@@ -1238,7 +1106,7 @@ Joining with `by = join_by(affiliationid)`
 ::: {.cell-output .cell-output-stderr}
 ```
 Warning in left_join(., affil_leiden_key): Detected an unexpected many-to-many relationship between `x` and `y`.
-ℹ Row 40 of `x` matches multiple rows in `y`.
+ℹ Row 150 of `x` matches multiple rows in `y`.
 ℹ Row 12237 of `y` matches multiple rows in `x`.
 ℹ If a many-to-many relationship is expected, set `relationship =
   "many-to-many"` to silence this warning.
@@ -1588,7 +1456,7 @@ oa_sdg_with_gdp_per_cap %>%
 :::
 
 ::: {.cell-output-display}
-![](article_files/figure-html/oa_by_sdg-1.png){width=864}
+![](article_files/figure-html/oa_by_sdg-1.png){width=960}
 :::
 :::
 
